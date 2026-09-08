@@ -89,11 +89,14 @@ julia --project=. -e 'using Pkg; Pkg.test()'
 ## 参考
 
 * P. W. Shor, *Polynomial-Time Algorithms for Prime Factorization and
-  Discrete Logarithms on a Quantum Computer*, SIAM J. Comput. 26, 1484 (1997).
+  Discrete Logarithms on a Quantum Computer*, SIAM J. Comput. 26(5),
+  1484–1509 (1997). arXiv:quant-ph/9508027
 * S. Beauregard, *Circuit for Shor's algorithm using 2n+3 qubits*,
-  Quant. Inf. Comput. 3, 175 (2003).
-* R. R. Griffiths, C.-S. Niu, *Semiclassical Fourier Transform for
-  Quantum Computation*, PRL 76, 3228 (1996).
+  Quant. Inf. Comput. 3(2), 175–185 (2003). arXiv:quant-ph/0205095
+* R. B. Griffiths, C.-S. Niu, *Semiclassical Fourier Transform for
+  Quantum Computation*, Phys. Rev. Lett. 76(17), 3228–3231 (1996).
+  arXiv:quant-ph/9511007
 * A. G. Fowler, S. J. Devitt, L. C. L. Hollenberg,
   *Implementation of Shor's Algorithm on a Linear Nearest Neighbour
-  Qubit Array*, Quant. Inf. Comput. 4, 237 (2004).
+  Qubit Array*, Quant. Inf. Comput. 4(4), 237–251 (2004).
+  arXiv:quant-ph/0402196
