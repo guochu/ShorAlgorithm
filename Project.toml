@@ -1,0 +1,20 @@
+name = "ShorAlgorithm"
+uuid = "4f2a9b7c-3d1e-4f6a-9b8c-2e5d7a1f3c4b"
+authors = ["Guo Chu <guochu604b@gmail.com>"]
+version = "0.1.0"
+
+[deps]
+QuantumCircuits = "aefa5731-75ce-4e77-8b64-9dbb49b79a07"
+Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+VQC = "1a0f967e-e74f-4f58-8b53-d7c235b06da4"
+
+[compat]
+QuantumCircuits = "0.1"
+VQC = "0.1"
+julia = "1.9"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]

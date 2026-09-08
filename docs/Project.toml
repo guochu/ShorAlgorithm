@@ -1,0 +1,8 @@
+[deps]
+Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
+QuantumCircuits = "aefa5731-75ce-4e77-8b64-9dbb49b79a07"
+ShorAlgorithm = "4f2a9b7c-3d1e-4f6a-9b8c-2e5d7a1f3c4b"
+VQC = "1a0f967e-e74f-4f58-8b53-d7c235b06da4"
+
+[compat]
+Documenter = "1"
