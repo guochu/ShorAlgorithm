@@ -112,29 +112,6 @@ function _beauregard_qpe_circuit(a::Integer, N::Integer)
     return c
 end
 
-"""
-    order_finding_by_qft([T=ComplexF64], a, N; verbosity=0) -> Float64
-
-用完整 QPE 线路求阶：模拟 `_beauregard_qpe_circuit` 并测量计数寄存器，
-返回相位读数 `y ≈ s/r`。`FullQFT` 算法的驱动实现。
-"""
-function order_finding_by_qft(::Type{T}, a::Int, N::Int; verbosity::Int = 0) where {T<:Number}
-    _check_order_finding_input(a, N)
-    n = ndigits(N, base=2)
-    state = StateVector(T, 4n + 2)
-    simulate!(_beauregard_qpe_circuit(a, N), state)
-    r = Int[]
-    for q in (2n+3):(4n+2)
-        outcome = measure!(state, q)
-        push!(r, outcome)
-    end
-    y = phase_to_float(r)
-    (verbosity >= 1) && println("order finding (full qft): y = $y")
-    return y
-end
-
-order_finding_by_qft(a::Int, N::Int; kwargs...) = order_finding_by_qft(ComplexF64, a, N; kwargs...)
-
 # ── LNNQFT：Fowler 完整 QPE ──────────────────────────────────────────────────
 
 """
@@ -163,120 +140,9 @@ function _lnn_qpe_circuit(a::Integer, N::Integer)
     return c
 end
 
-"""
-    order_finding_by_lnn([T=ComplexF64], a, N; verbosity=0) -> Float64
-
-用 LNN 完整 QPE 线路求阶。`LNNQFT` 算法的驱动实现。
-"""
-function order_finding_by_lnn(::Type{T}, a::Int, N::Int; verbosity::Int = 0) where {T<:Number}
-    _check_order_finding_input(a, N)
-    n = ndigits(N, base=2)
-    state = StateVector(T, 4n + 3)
-    simulate!(_lnn_qpe_circuit(a, N), state)
-    r = Int[]
-    for q in 1:(2n)
-        outcome = measure!(state, q)
-        push!(r, outcome)
-    end
-    y = phase_to_float(r)
-    (verbosity >= 1) && println("order finding (lnn): y = $y")
-    return y
-end
-
-order_finding_by_lnn(a::Int, N::Int; kwargs...) = order_finding_by_lnn(ComplexF64, a, N; kwargs...)
-
 # ── SemiclassicalQFT：单控制比特 + 测量反馈 ──────────────────────────────────
 
-"""
-    order_finding_scq([T=ComplexF64], a, N; verbosity=0) -> Float64
-
-**单控制比特 + 半经典 QFT** 求阶（Griffiths–Niu 测量反馈）：仅用
-`2n+3` 个 qubit（n = bits(N)）。
-
-布局：t=1，b=2..n+2，win=n+3..2n+2（初值 |1⟩，LSB = 2n+2），
-控制比特 = 2n+3。每轮：H(控制) → 受控 U_{a^(2^k)} →
-相位反馈 `PHASE(-π·0.b…)` → H(控制) → 测量并复位。
-
-对应旧 `scq_order_finding_by_qft` / `order_finding_by_qft_impl`。
-`SemiclassicalQFT` 算法的驱动实现。
-"""
-function order_finding_scq(::Type{T}, a::Int, N::Int; verbosity::Int = 0) where {T<:Number}
-    _check_order_finding_input(a, N)
-    n = ndigits(N, base=2)
-    state = StateVector(T, 2n + 3)
-    ctl = 2n + 3
-    qs_b = collect(2:(n+2))
-    # win 初值 |1⟩（LSB = 2n+2），b 进入 Fourier 基
-    apply!(state, X(2n + 2))
-    simulate!(qft_circuit(qs_b), state)
-    # 预先平方存表：astore[k] = a^(2^(k-1)) mod N
-    astore, rastore = _mod_powers(a, N, 2n)
-    r = Int[]
-    for i in 0:(2n-1)
-        apply!(state, H(ctl))
-        simulate!(modular_u_circuit(N, astore[2n-i], rastore[2n-i]), state)
-        # 半经典 QFT 相位反馈（已测比特，最新比特权重 1/2）
-        isempty(r) || apply!(state, PHASE(-π * phase_to_float(reverse(r)), ctl))
-        apply!(state, H(ctl))
-        p_k = marginal_probabilities(state, ctl)
-        outcome = measure!(state, ctl)
-        p = p_k[outcome + 1]
-        apply!(state, reinit(ctl))
-        push!(r, outcome)
-        (verbosity >= 2) && println("measurement outcome at $i-th step is $outcome (p = $p).")
-    end
-    y = phase_to_float(reverse(r))
-    (verbosity >= 1) && println("order finding (semiclassical): y = $y")
-    return y
-end
-
-order_finding_scq(a::Int, N::Int; kwargs...) = order_finding_scq(ComplexF64, a, N; kwargs...)
-
-"""
-    order_finding_scq_lnn([T=ComplexF64], a, N; verbosity=0) -> Float64
-
-**单控制比特 + 半经典 QFT 的 LNN 版**（Fowler 布局上的 Griffiths–Niu
-反馈）：仅 `2n+4` 个 qubit。
-
-布局（对照 `lnn_modular_u_circuit`）：win = 1..n+1（LSB = qubit `n+1`，
-初值 `|1⟩`），ki = n+2（IPE 控制位），kx = n+3，b = n+4..2n+4
-（Fourier 工作寄存器，初态 `|0̃⟩`）。每轮：H(ki) → 受控 U_{a^(2^k)} →
-相位反馈 `PHASE(-π·0.b…)` → H(ki) → 测量并复位 ki。
-
-`SemiclassicalLNN` 算法的驱动实现。
-"""
-function order_finding_scq_lnn(::Type{T}, a::Int, N::Int; verbosity::Int = 0) where {T<:Number}
-    _check_order_finding_input(a, N)
-    n = ndigits(N, base = 2)
-    m = 2n
-    ki = n + 2
-    wlsb = n + 1
-    state = StateVector(T, 2n + 4)
-    apply!(state, X(wlsb))                        # win = |1⟩
-    for q in (n+4):(2n+4)                         # b = Fourier 零态 |0̃⟩（kx 置 |0⟩）
-        apply!(state, H(q))
-    end
-    astore, rastore = _mod_powers(a, N, m)
-    r = Int[]
-    for i in 0:(m-1)
-        apply!(state, H(ki))
-        simulate!(lnn_modular_u_circuit(N, astore[m-i], rastore[m-i]), state)
-        # 半经典 QFT 相位反馈（已测比特，最新比特权重 1/2）
-        isempty(r) || apply!(state, PHASE(-π * phase_to_float(reverse(r)), ki))
-        apply!(state, H(ki))
-        p_k = marginal_probabilities(state, ki)
-        outcome = measure!(state, ki)
-        p = p_k[outcome + 1]
-        apply!(state, reinit(ki))
-        push!(r, outcome)
-        (verbosity >= 2) && println("measurement outcome at $i-th step is $outcome (p = $p).")
-    end
-    y = phase_to_float(reverse(r))
-    (verbosity >= 1) && println("order finding (semiclassical lnn): y = $y")
-    return y
-end
-
-order_finding_scq_lnn(a::Int, N::Int; kwargs...) = order_finding_scq_lnn(ComplexF64, a, N; kwargs...)
+# ── SemiclassicalLNN：LNN 布局的测量反馈 ─────────────────────────────────────
 
 # ── 打包：把整个求阶计算包装成一条线路 ───────────────────────────────────────
 
@@ -398,10 +264,43 @@ function _semiclassical_lnn_qpe_circuit(a::Integer, N::Integer)
     return c
 end
 
-# ── 统一入口 ─────────────────────────────────────────────────────────────────
+# ── 统一入口（后端注入）─────────────────────────────────────────────────────
+
+"相位读数寄存器（按测量顺序，`qs[1]` 权重 1/2）对应的 qubit 列表。"
+_readout_qubits(alg::QuantumOrderFindingAlgorithm, n::Int, m::Int) =
+    _readout_qubits(typeof(alg), n, m)
+_readout_qubits(::Type{SemiclassicalQFT}, n::Int, m::Int) = collect((2n+4):(4n+3))
+_readout_qubits(::Type{SemiclassicalLNN}, n::Int, m::Int) = collect((2n+5):(4n+4))
+_readout_qubits(::Type{FullQFT},          n::Int, m::Int) = collect((2n+3):(4n+2))
+_readout_qubits(::Type{LNNQFT},           n::Int, m::Int) = collect(1:m)
+
+"""给线路追加相位读出测量：寄存器 `qs` 逐位测入经典寄存器 `:ph`。"""
+function _with_phase_readout!(c::Circuit, qs::Vector{Int})
+    ph = CReg(:ph, length(qs))
+    push!(c.cregs, ph)
+    for (k, q) in enumerate(qs)
+        push!(c, measure(q, ph[k]))
+    end
+    return c
+end
+
+"""从计数键提取 `:ph` 相位读数样本：`y = 整数值 / 2^m`。"""
+function _phase_samples(counts::Dict{String,Int}, m::Int)
+    samples = Tuple{Float64,Int}[]                  # (y, 出现次数)
+    for (key, n) in counts
+        for part in split(key, ',')
+            name, bits = split(part, ':')
+            if name == "ph"
+                push!(samples, (parse(Int, bits, base = 2) / 2.0^m, n))
+            end
+        end
+    end
+    isempty(samples) && throw(ArgumentError("phase register :ph not found in counts"))
+    return samples
+end
 
 """
-    order_finding(a, N; alg=SemiclassicalQFT()) -> Float64
+    order_finding(a, N; alg=SemiclassicalQFT(), backend, shots=1) -> Float64
 
 求阶唯一入口，按 `alg` 派发到具体实现：
 
@@ -410,22 +309,36 @@ end
 * `FullQFT()`：完整 QPE，Beauregard 电路（4n+2 qubit）；
 * `LNNQFT()`：完整 QPE，Fowler 近邻电路（4n+3 qubit）。
 
-日志级别由 `alg` 携带（如 `SemiclassicalQFT(verbosity=1)`）。
-返回相位读数 `y ≈ s/r`（r 为 a 模 N 的阶）；用 `continued_fraction`
-从 `y` 提取阶 `r`。
-"""
-function order_finding(a::Int, N::Int; alg::QuantumOrderFindingAlgorithm = SemiclassicalQFT())
-    return _order_finding(alg, a, N)
-end
+执行经 `QuantumCircuits.simulate(c, backend; shots)` 完成——**backend
+为必填的 `QuantumCircuits.Interface.Backend` 实例**（算法包与具体
+模拟器解耦；如 VQC 的 `StateVectorBackend()`）。运行 `shots` 个样本，
+返回出现最频繁的相位读数 `y ≈ s/r`（r 为 a 模 N 的阶）；用
+`continued_fraction` 从 `y` 提取阶 `r`。
 
-_order_finding(alg::SemiclassicalQFT, a::Int, N::Int) =
-    order_finding_scq(a, N; verbosity=alg.verbosity)
-_order_finding(alg::SemiclassicalLNN, a::Int, N::Int) =
-    order_finding_scq_lnn(a, N; verbosity=alg.verbosity)
-_order_finding(alg::FullQFT, a::Int, N::Int) =
-    order_finding_by_qft(a, N; verbosity=alg.verbosity)
-_order_finding(alg::LNNQFT, a::Int, N::Int) =
-    order_finding_by_lnn(a, N; verbosity=alg.verbosity)
+半经典算法依赖中途测量与经典反馈，需后端支持 `:mid_measure` 能力。
+"""
+function order_finding(a::Int, N::Int;
+                       alg::QuantumOrderFindingAlgorithm = SemiclassicalQFT(),
+                       backend::QuantumCircuits.Interface.Backend,
+                       shots::Int = 1)
+    _check_order_finding_input(a, N)
+    shots >= 1 || throw(ArgumentError("shots must be >= 1"))
+    if alg isa Union{SemiclassicalQFT, SemiclassicalLNN}
+        supports(backend, :mid_measure) ||
+            throw(ArgumentError("$(typeof(backend)) does not support :mid_measure, " *
+                                "required by $alg"))
+    end
+
+    n = ndigits(N, base = 2)
+    m = 2n
+    c = _with_phase_readout!(order_finding_circuit(a, N; alg = alg),
+                             _readout_qubits(alg, n, m))
+    r = simulate(c, backend; shots = shots)
+    samples = _phase_samples(r.counts, m)
+    y, _ = argmax(s -> s[2], samples)               # 出现最频繁的读数
+    (alg.verbosity >= 1) && println("order finding ($alg): y = $y")
+    return y
+end
 
 "以新的 `verbosity` 复制算法配置。"
 _with_verbosity(alg::QuantumOrderFindingAlgorithm, verbosity::Int) =

@@ -1,5 +1,10 @@
 using Test
+using QuantumCircuits
+using QuantumCircuits.Interface: simulate, simulate!
+using VQC
+
+# 测试用后端：VQC 的态矢量实现（算法包本身不依赖 VQC）
+const backend = VQC.StateVectorBackend()
 
 # ShorAlgorithm 测试入口
-# 依赖：QuantumCircuits（IR）+ VQC（态矢量模拟后端，经包扩展自动加载）
 include("shor.jl")

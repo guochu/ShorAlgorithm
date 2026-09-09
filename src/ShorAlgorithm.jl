@@ -3,7 +3,9 @@
 
 基于 `QuantumCircuits` IR 的 Shor 算法应用层包：把 VQC（旧 0-based
 QCircuit 实现）中的 Shor 算法电路移植为 1-based、小端序的
-`QuantumCircuits.Circuit`，并用 `VQC` 态矢量后端执行。
+`QuantumCircuits.Circuit`，并经 `QuantumCircuits.Interface.simulate`
+在**任意后端**上执行（本包不依赖任何具体模拟器；后端实例由调用方
+注入，如 VQC 的 `StateVectorBackend()`）。
 
 分层：
 
@@ -17,7 +19,7 @@ QCircuit 实现）中的 Shor 算法电路移植为 1-based、小端序的
   `QuantumOrderFindingAlgorithm` 的子类型单例派发：
   `SemiclassicalQFT`（半经典 Beauregard，默认）/ `SemiclassicalLNN`
   （半经典 Fowler 近邻）/ `FullQFT`（Beauregard 完整 QPE）/
-  `LNNQFT`（Fowler 近邻完整 QPE），日志级别由 `alg` 携带）、
+  `LNNQFT`（Fowler 近邻完整 QPE））、
   `order_finding_circuit`（把整个求阶计算打包成一条线路——半经典版
   含测量 / 经典反馈 IfOp / 输出寄存器）、`shor`（完整因数分解）。
 
@@ -32,7 +34,7 @@ module ShorAlgorithm
 
 using Random
 using QuantumCircuits
-using VQC
+using QuantumCircuits.Interface: Backend, simulate
 
 export compute_phase,
        continued_fraction, is_prime, perfect_power,

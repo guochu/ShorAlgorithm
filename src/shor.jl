@@ -104,8 +104,8 @@ end
 
 """
     shor(n; max_attempts=100, shots=3, alg=SemiclassicalQFT(),
-         small_primes=[3, 5, …, 47], verbosity=0, rng=Random.default_rng())
-         -> Tuple{Int,Int}
+         backend, small_primes=[3, 5, …, 47], verbosity=0,
+         rng=Random.default_rng()) -> Tuple{Int,Int}
 
 完整 Shor 因数分解：返回 `n` 的一对非平凡因子 `(p, q)`。
 
@@ -117,9 +117,11 @@ end
 参数：
 
 * `max_attempts`：随机基的最大尝试次数；
-* `shots`：每次尝试的量子测量次数；
+* `shots`：每次尝试的量子采样次数（取出现最频繁的相位读数）；
 * `alg`：量子求阶算法（`QuantumOrderFindingAlgorithm` 子类型单例，
   见 `order_finding`）；
+* `backend`：`QuantumCircuits.Interface.Backend` 实例（如 VQC 的
+  `StateVectorBackend()`）。走经典捷径（偶数 / 小素数 / 完全幂）时可不传；
 * `small_primes`：试除捷径的素数表（置空可强制走量子路径，测试用）；
 * `rng`：随机源。
 
@@ -129,6 +131,7 @@ function shor(n::Integer;
               max_attempts::Int = 100,
               shots::Int = 3,
               alg::QuantumOrderFindingAlgorithm = SemiclassicalQFT(),
+              backend::Union{Nothing,QuantumCircuits.Interface.Backend} = nothing,
               small_primes::Vector{Int} = [3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47],
               verbosity::Int = 0,
               rng::AbstractRNG = Random.default_rng())
@@ -148,6 +151,10 @@ function shor(n::Integer;
         return (p, n ÷ p)          # k ≥ 2 保证非平凡
     end
 
+    backend === nothing && throw(ArgumentError(
+        "shor: quantum order finding requires a backend; pass e.g. " *
+        "backend = VQC.StateVectorBackend()"))
+
     # ── 量子循环 ──
     for attempt in 1:max_attempts
         a = rand(rng, 2:(n-1))
@@ -156,19 +163,18 @@ function shor(n::Integer;
             (verbosity >= 1) && println("attempt $attempt: lucky gcd($a, $n) = $g.")
             return (g, n ÷ g)
         end
-        for _ in 1:shots
-            y = order_finding(a, n; alg=_with_verbosity(alg, verbosity))
-            r = order_from_phase(y, a, n)
-            (r === nothing || isodd(r)) && continue
-            x = powermod(a, r >> 1, n)
-            (x == n - 1) && continue        # a^(r/2) ≡ -1：退化，换基重试
-            f1 = gcd(x - 1, n)
-            f2 = gcd(x + 1, n)
-            if 1 < f1 < n
-                return (f1, n ÷ f1)
-            elseif 1 < f2 < n
-                return (f2, n ÷ f2)
-            end
+        y = order_finding(a, n; alg = _with_verbosity(alg, verbosity),
+                          backend = backend, shots = shots)
+        r = order_from_phase(y, a, n)
+        (r === nothing || isodd(r)) && continue
+        x = powermod(a, r >> 1, n)
+        (x == n - 1) && continue        # a^(r/2) ≡ -1：退化，换基重试
+        f1 = gcd(x - 1, n)
+        f2 = gcd(x + 1, n)
+        if 1 < f1 < n
+            return (f1, n ÷ f1)
+        elseif 1 < f2 < n
+            return (f2, n ÷ f2)
         end
         (verbosity >= 1) && println("attempt $attempt with a = $a failed; retrying.")
     end
