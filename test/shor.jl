@@ -179,8 +179,11 @@ bitrev(j::Int, L::Int) = sum(((j >> (L - 1 - k)) & 1) << k for k in 0:(L-1); ini
 
     @testset "求阶：单控制比特半经典" begin
         # 走打包线路路径（含 IfOp 反馈的整线路模拟）。半经典测量每轮坍缩，
-        # 单样本读数即确定地落在 s/r 格点上；取 3 个基、各 1 样本控制总时长。
-        for (a, N, r) in ((2, 21, 6), (4, 21, 3), (10, 21, 6))
+        # 单样本读数即确定地落在 s/r 格点上。
+        # 注：N=21 的打包线路为 23 qubit（2^23 幅、仅 ~2^13 非零），VQC kernel
+        # 目前全量流过存储，单次模拟为分钟级；23q 路径的端到端覆盖由
+        # shor(21)（shots=2）承担，此处用 N=15 控制总时长。
+        for (a, N, r) in ((2, 15, 4), (4, 15, 2))
             y = order_finding(a, N; backend = backend)
             k = round(Int, y * r)
             @test abs(y - k / r) < 0.05
@@ -218,15 +221,12 @@ bitrev(j::Int, L::Int) = sum(((j >> (L - 1 - k)) & 1) << k for k in 0:(L-1); ini
             @test maximum(pm) > 1 - 1e-10             # out 寄存器确定（辅助位不承诺干净）
         end
         # SemiclassicalLNN：LNN 布局的半经典打包线路（win/ki/kx/b + out）
+        # 20q 全线路模拟为分钟级且与上方 SemiclassicalQFT 模拟重复度高，
+        # 端到端覆盖由「求阶：单控制比特半经典 LNN」testset 承担，此处仅结构断言。
         cl = order_finding_circuit(7, 15; alg=SemiclassicalLNN())
         @test QuantumCircuits.nqubits(cl) == 20      # 2n+4+m = 4n+4
         sl = QuantumCircuits.draw(cl; unroll=false)
         @test occursin("U(7)", sl)
-        out = simulate(cl, zero_state(20))
-        pm = marginal_probabilities(out, collect(13:20))  # out 寄存器边缘分布（13 为 LSB）
-        v = argmax(pm) - 1
-        @test v % 64 == 0 && v ÷ 64 in (0, 1, 2, 3)   # y = v/2^8 ≈ s/4
-        @test maximum(pm) > 1 - 1e-10
     end
 
     @testset "shor 分解" begin
