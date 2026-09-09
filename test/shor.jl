@@ -252,4 +252,17 @@ bitrev(j::Int, L::Int) = sum(((j >> (L - 1 - k)) & 1) << k for k in 0:(L-1); ini
         k = round(Int, y * 4)
         @test abs(y - k / 4) < 0.05
     end
+
+    @testset "MPS 后端（MatrixProductBackend）" begin
+        # MPSSimulator 的矩阵乘积态后端（支持 :mid_measure / :noise）：
+        # 跨后端验证 Interface 契约——同一驱动函数在后端注入下直接可换。
+        # 冒烟级规模（N=15、半经典单样本），大电路覆盖由上面 VQC 组承担。
+        y = order_finding(2, 15; backend = mps_backend)          # r=4
+        @test abs(y - round(Int, y * 4) / 4) < 0.05
+        y = order_finding(7, 15; alg = SemiclassicalLNN(), backend = mps_backend)
+        @test abs(y - round(Int, y * 4) / 4) < 0.05              # r=4
+        p, q = shor(15; small_primes = Int[], rng = MersenneTwister(7),
+                    backend = mps_backend, shots = 1)
+        @test p * q == 15 && 1 < p < 15
+    end
 end
