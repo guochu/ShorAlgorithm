@@ -33,8 +33,8 @@ function shift(c::Circuit, k::Int)
     for (i, op) in enumerate(c.ops)
         ops[i] = if op isa GateOp
             GateOp(op.gate, op.qubits .+ k, op.params)
-        elseif op isa ReinitOp
-            ReinitOp(op.qubits .+ k)
+        elseif op isa ResetOp
+            ResetOp(op.qubits .+ k)
         elseif op isa BarrierOp
             BarrierOp(op.qubits .+ k)
         elseif op isa BlockOp

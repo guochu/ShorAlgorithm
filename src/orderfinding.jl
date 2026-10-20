@@ -207,7 +207,7 @@ function _semiclassical_qpe_circuit(a::Integer, N::Integer)
         end
         push!(c, H(ctl))
         push!(c, measure(ctl, rreg[m-k+1]))
-        push!(c, reinit(ctl))
+        push!(c, reset(ctl))
     end
     # 最后一轮 r_m 无后继反馈分支，单独按取值拷贝（r_m = rreg[1]）
     if_then(c, rreg[1] == 1, Circuit([X(out0 + m)]))
@@ -257,7 +257,7 @@ function _semiclassical_lnn_qpe_circuit(a::Integer, N::Integer)
         end
         push!(c, H(ki))
         push!(c, measure(ki, rreg[m-k+1]))
-        push!(c, reinit(ki))
+        push!(c, reset(ki))
     end
     # 最后一轮 r_m 无后继反馈分支，单独按取值拷贝（r_m = rreg[1]）
     if_then(c, rreg[1] == 1, Circuit([X(out0 + m - 1)]))
